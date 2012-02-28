@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="js/fabric.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js
+"></script>
+  <script src="js/json2.js"></script>
+    <style>
+    html, body {
+    	margin:0;
+    	padding:0;
+    	overflow:hidden;
+    }
+    </style>
+
+  </head>
+  <body id='body'>
+    <script>
+
+function createBoundedWrapper(object, method) {
+  return function() {
+    return method.apply(object, arguments);
+  };
+}
+
+function Item( workspace, imageURL ) {
+  this.imageURL = undefined;
+  this.workspace = workspace;
+  var zabric;
+
+  function fabricImageCallback(image) {
+    console.log("sdfsdfsdf");
+
+    zabric = image.set({left: 250, top: 250});
+    this.workspace.canvas.add(zabric);
+    this.workspace.canvas.renderAll();
+    this.fabric = image;
+
+    if(++this.workspace.loadedItems >= this.workspace.numItems) {
+      this.workspace.saveRemotely();
+    }
+
+  }
+
+  var boundFabricImageCallback = createBoundedWrapper(this, fabricImageCallback);
+
+  fabric.Image.fromURL(imageURL, boundFabricImageCallback);
+
+}
+
+function Workspace() {
+		this.items = [];
+    this.loadedItems = 0;
+		this.numItems = 0;
+    this.initialized = false;
+    this.id = 1;
+
+		this.processJSON = function(data) {
+      var itemsLoaded = 0;
+      //var item = new Item(this, data.items[0].url);
+      this.numItems = data.items.length;
+
+			for(i in data.items) {
+
+        var item = new Item(this, data.items[0].url);
+
+        this.items.push(item);
+      }
+/*
+      	var image1 = fabric.Image.fromURL(data.items[i].url, function(image) {
+	          image.lockUniScaling = true;
+        //  image.scale(.48).setCoords();
+	          this.workspace.canvas.centerObject(image)
+    			  this.workspace.canvas.add(image);
+            var jsonString = JSON.stringify(image.toJSON());
+            console.log(jsonString);
+            this.fabric = image;
+
+            if( ++itemsLoaded >= data.items.length ) {
+              this.
+            }
+        });
+        console.log(this.fabric);
+
+
+			}
+
+			if(data.initialized) {
+				this.render();
+			} else {
+				this.initialRender();
+			}
+      */
+	}
+
+	  this.render = function() {
+
+		}
+
+		this.initialRender = function() {
+
+		}
+
+}
+
+Workspace.prototype.saveRemotely = function() {
+
+  var tempWorkspace = {};
+  tempWorkspace.id = this.id;
+  tempWorkspace.initialized = this.initialized;
+  tempWorkspace.items = this.canvas.getObjects();
+  console.log(tempWorkspace);
+  var jsonString = JSON.stringify(tempWorkspace);
+//  console.log(jsonString);
+  $.post('http://localhost/apt/json.php', {
+    id: this.id,
+    content: jsonString },
+    function(data) {
+      console.log(data);
+      console.log("successful post.");
+    }
+  );
+
+
+}
+
+    Workspace.prototype.init = function() {
+        var boundZoom = createBoundedWrapper(this, this.zoom);
+        var boundProcessJSON = createBoundedWrapper(this, this.processJSON);
+
+    	// This is our main canvas element. Create and append it.
+	   	var canvasElem = document.createElement('canvas');
+    	canvasElem.setAttribute('id', 'c');
+    	canvasElem.setAttribute('width', window.innerWidth);
+    	canvasElem.setAttribute('height', window.innerHeight);
+    	canvasElem.setAttribute('style', "border:1px solid #ccc");
+    	document.getElementById('body').appendChild(canvasElem);
+
+    	// This is our FabricJS object for the canvas.
+        this.canvas = new fabric.Canvas('c');
+
+        // Default zoom scale
+        this.zoomScale = 1;
+
+        // Event listener for zoom.
+        document.addEventListener('DOMMouseScroll', boundZoom, false);
+
+        var apiURL = "http://everest.ischool.utexas.edu/~jeff/apt/json.php";
+        $.getJSON("json.json", {
+        		workspace: '1'
+        	}, boundProcessJSON);
+	}
+
+
+Workspace.prototype.loadItems = function( items ) {
+
+}
+
+Workspace.prototype.zoom = function( event ) {
+			console.log(this);
+			var group = new fabric.Group(this.canvas.getObjects());
+			group.selectable = false;
+			group.hasBorders = false;
+			group.hasControls = false;
+
+			var groupObjects = group.getObjects();
+			for(i in groupObjects) {
+				groupObjects[i].hasBorders = false;
+			}
+
+			if(event.detail > 0) {
+				this.zoomScale = this.zoomScale - .05;
+			} else if(event.detail < 0) {
+
+				this.zoomScale = this.zoomScale + .05;
+			}
+
+			this.canvas.setActiveGroup(group);
+			group.scale(this.zoomScale);
+
+			this.canvas.renderAll();
+			this.canvas.discardActiveGroup();
+
+			var groupObjects = group.getObjects();
+				for(i in groupObjects) {
+					groupObjects[i].hasBorders = true;
+				}
+
+}
+
+var workspace = new Workspace();
+console.log(workspace);	
+workspace.init();
+/*
+        var sources = ['http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', 'http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', 'http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg'];
+
+        for(i in sources) {
+        	var image1 = fabric.Image.fromURL(sources[i], function(image) {
+        	image.set({
+            	left: 0,
+            	top: 0
+          	});
+          
+          image.lockUniScaling = true;
+        //  image.scale(.48).setCoords();
+          
+          canvas.centerObject(image);
+          canvas.add(image);
+        });
+        }
+*/
+/* manual image entry
+		var image1 = fabric.Image.fromURL('http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', function(image) {
+        	image.set({
+            	left: 0,
+            	top: 0
+          	});
+          
+          image.lockUniScaling = true;
+        //  image.scale(.48).setCoords();
+          
+          canvas.centerObject(image)
+          canvas.add(image);
+        });
+
+		var image2 = fabric.Image.fromURL('http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', function(image) {
+        	image.set({
+            	left: 350,
+            	top: 350
+          	});
+          
+          image.lockUniScaling = true;
+         // image.scale(.48).setCoords();
+        //            canvas.centerObject(image)
+
+          canvas.add(image);
+        });
+*/
+
+/*
+		var group = new fabric.Group(canvas.getObjects());
+		
+		//group.scale(0.65);
+		canvas.setActiveGroup(group);
+
+		canvas.renderAll();
+*/
+
+		function zoom(event) {
+
+		}    
+
+    </script>
+  </body>
+</html>

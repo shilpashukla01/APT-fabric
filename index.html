@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="js/fabric.js"></script>
+    <style>
+    html, body {
+    	margin:0;
+    	padding:0;
+    	overflow:hidden;
+    }
+    </style>
+
+  </head>
+  <body id='body'>
+    <script>
+
+    	// This is our main canvas element. Create and append it.
+	   	var canvasElem = document.createElement('canvas');
+    	canvasElem.setAttribute('id', 'c');
+    	canvasElem.setAttribute('width', window.innerWidth);
+    	canvasElem.setAttribute('height', window.innerHeight);
+    	canvasElem.setAttribute('style', "border:1px solid #ccc");
+    	document.getElementById('body').appendChild(canvasElem);
+
+    	// This is our FabricJS object for the canvas.
+        var canvas = new fabric.Canvas('c');
+
+        // Default zoom scale
+        var zoomScale = 1;
+
+        // Event listener for zoom.
+        document.addEventListener('DOMMouseScroll', zoom, false);
+
+        var sources = ['http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', 'http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', 'http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg'];
+
+        for(i in sources) {
+        	var image1 = fabric.Image.fromURL(sources[i], function(image) {
+        	image.set({
+            	left: 0,
+            	top: 0
+          	});
+          
+          image.lockUniScaling = true;
+        //  image.scale(.48).setCoords();
+          
+          canvas.centerObject(image);
+          canvas.add(image);
+        });
+        }
+/* manual image entry
+		var image1 = fabric.Image.fromURL('http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', function(image) {
+        	image.set({
+            	left: 0,
+            	top: 0
+          	});
+          
+          image.lockUniScaling = true;
+        //  image.scale(.48).setCoords();
+          
+          canvas.centerObject(image)
+          canvas.add(image);
+        });
+
+		var image2 = fabric.Image.fromURL('http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', function(image) {
+        	image.set({
+            	left: 350,
+            	top: 350
+          	});
+          
+          image.lockUniScaling = true;
+         // image.scale(.48).setCoords();
+        //            canvas.centerObject(image)
+
+          canvas.add(image);
+        });
+*/
+
+
+		var group = new fabric.Group(canvas.getObjects());
+		
+		//group.scale(0.65);
+		canvas.setActiveGroup(group);
+
+		canvas.renderAll();
+
+
+		function zoom(event) {
+			var group = new fabric.Group(canvas.getObjects());
+			group.selectable = false;
+			group.hasBorders = false;
+			group.hasControls = false;
+
+			var groupObjects = group.getObjects();
+			for(i in groupObjects) {
+				groupObjects[i].hasBorders = false;
+			}
+
+			if(event.detail > 0) {
+				zoomScale = zoomScale - .05;
+			} else if(event.detail < 0) {
+
+				zoomScale = zoomScale + .05;
+			}
+
+			canvas.setActiveGroup(group);
+			group.scale(zoomScale);
+
+			canvas.renderAll();
+			canvas.discardActiveGroup();
+
+			var groupObjects = group.getObjects();
+				for(i in groupObjects) {
+					groupObjects[i].hasBorders = true;
+				}
+
+		}    
+//      })();
+    </script>
+  </body>
+</html>
