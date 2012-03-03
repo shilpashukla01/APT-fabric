@@ -2,254 +2,445 @@
 <html>
   <head>
     <meta charset="utf-8">
+    <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/themes/base/jquery-ui.css" type="text/css" media="all" />
     <script src="js/fabric.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js
-"></script>
-  <script src="js/json2.js"></script>
+    <script src="js/fabric-PermGroup.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+    <script src="js/json2.js"></script>
     <style>
-    html, body {
-    	margin:0;
-    	padding:0;
-    	overflow:hidden;
-    }
+      html, body {
+    	 margin:0;
+    	 padding:0;
+    	 overflow:hidden;
+      }
+
+     .vmenu{border:1px solid #aaa;position:absolute;background:#fff;  display:none;font-size:0.75em;}
+     .vmenu .first_li span{width:100px;display:block;padding:5px 10px;cursor:pointer}
+     .vmenu .inner_li{display:none;margin-left:120px;position:absolute;border:1px solid #aaa;border-left:1px solid #ccc;margin-top:-28px;background:#fff;}
+     .vmenu .sep_li{border-top: 1px ridge #aaa;margin:5px 0}
+     .vmenu .fill_title{font-size:11px;font-weight:bold;/height:15px;/overflow:hidden;word-wrap:break-word;}
+
+     #state { width: 70px; height: 25px; position: fixed; background-color:'#FFFFFF'; border:1px solid black; font-size:9pt; font-family: Arial, sans-serif;z-index:101; display:none;text-align:center;}
     </style>
 
-  </head>
-  <body id='body'>
-    <script>
+    </head>
+    <body id='body'>
+      <div class="vmenu" id="original" style="display:none;">
+        <div class="first_li" id="edit"><span>Edit metadata</span></div>
+        <div class="first_li" id="groupadd"><span>Add to group</span></div>
+        <div class="first_li" id="groupremove"><span>Remove from group</span></div>
+      </div>
+      <script>
 
+/* Takes in a function method, returns a duplicate scoped to object.
+   So 'this' will point to object. Helpful for things like event
+   handler functions that are scoped to DOMWindow or document despite
+   being called inside an object. */
 function createBoundedWrapper(object, method) {
   return function() {
     return method.apply(object, arguments);
   };
 }
 
-function Item( workspace, imageURL ) {
-  this.imageURL = undefined;
+
+/* Group class. Container for fabric.PermGroup */
+function Group(workspace) {
   this.workspace = workspace;
-  var zabric;
+  this.items = [];
+  this.title = undefined;
+  this.fabric = new fabric.Group();
+}
 
+Group.prototype.add = function(item) {
+  this.items.push(item);
+  this.fabric.add(item.fabric);
+}
+
+Group.prototype.remove = function(id) {
+  this.items.remove(this.items[id]);
+  this.fabric.remove(this.items[id].fabric);
+}
+
+/* Our Item object. Represents individual documents. */
+function Item(workspace, imageURL) {
+  this.imageURL = imageURL;
+  this.workspace = workspace;
+  this.id = ++this.workspace.numItems;
+  this.title = "a letter";
+  this.description = "a letter...";
+
+/* This is called once fabric creates a new Image object. 
+  It's called using wrapper 'boundFabricImageCallback' to change scope. */
   function fabricImageCallback(image) {
-    console.log("sdfsdfsdf");
+/* *** Need feedback function here to display loading progress
+       since it takes a while. */
 
-    zabric = image.set({left: 250, top: 250});
-    this.workspace.canvas.add(zabric);
-    this.workspace.canvas.renderAll();
+    image.set({
+      left: 250,
+      top: 250
+    });
+    this.workspace.canvas.add(image);
+
+    image.lockUniScaling = true;
+
+    // This saves it to our object.
     this.fabric = image;
+    this.fabric.item = this;
 
-    if(++this.workspace.loadedItems >= this.workspace.numItems) {
-      this.workspace.saveRemotely();
+    // If all the items are loaded, render the canvas and change state
+    if (++this.workspace.loadedItems >= this.workspace.numItems) {
+      this.workspace.canvas.renderAll();
+      this.workspace.changeState('ready');
+      console.log(this.workspace.canvas);
     }
 
   }
 
+  // Bound wrapper for private method fabricImageCallback
   var boundFabricImageCallback = createBoundedWrapper(this, fabricImageCallback);
 
+  // Create new fabric Image object for our item.
   fabric.Image.fromURL(imageURL, boundFabricImageCallback);
 
 }
 
+/* Workspace object is the overall container object. Fabric canvas is kept inside it, 
+so are all Items and functions for loading/saving */
 function Workspace() {
-		this.items = [];
-    this.loadedItems = 0;
-		this.numItems = 0;
-    this.initialized = false;
-    this.id = 1;
+  this.items = [];
+  this.groups = [];
+  this.loadedItems = 0;
+  this.numItems = 0;
+  this.initialized = false;
+  this.id = 1;
+  this.lastMouseDown = {};
 
-		this.processJSON = function(data) {
-      var itemsLoaded = 0;
-      //var item = new Item(this, data.items[0].url);
-      this.numItems = data.items.length;
+  this.uiElements = [];
 
-			for(i in data.items) {
+  var boundLoadSVGFromURLCallback = createBoundedWrapper(this, loadFromSVGFromURLCallback);
 
-        var item = new Item(this, data.items[0].url);
+/* This function processes the workspace JSON returned from our request to the server.
+  Run using a bounded wrapper. */
+  this.processJSON = function(data) {
 
-        this.items.push(item);
+    //for (i in data.items) {
+      var i=1;
+      var item = new Item(this, data.items[i].url);
+      this.items.push(item);
+    //}
+  }
+
+  this.render = function() {
+
+  }
+
+  this.initialRender = function() {
+
+  }
+
+  // If top & left are not included, item is just loaded, it does not display
+  this.loadSVGFile = function(name, scale, width, height, top, left) {
+
+    fabric.loadSVGFromURL('img/' + name + '.svg', function(svg) {
+      boundLoadSVGFromURLCallback(svg, {
+        name: name,
+        width: width,
+        scale: scale,
+        height: height,
+        top: top,
+        left: left
+      });
+    });
+  }
+
+  // This loads and renders our UI
+  this.loadUI = function() {
+    this.loadUIElements();
+    this.renderUI();
+  }
+
+  // This creates and renders the state feedback box in the lower right corner
+  this.loadStateFeedback = function() {
+    var offsetLeft = this.canvas.width - 85;
+    var offsetTop = this.canvas.height - 40;
+
+    this.stateDiv = document.createElement('div');
+    this.stateDiv.appendChild(document.createElement('span'));
+    this.stateDiv.setAttribute('id', 'state');
+    this.stateDiv.setAttribute('style', 'left:' + offsetLeft + 'px;top:' + offsetTop + 'px;');
+    $('#body').append(this.stateDiv);
+    $(this.stateDiv).show();
+
+  }
+
+  // This function changes the state
+  this.changeState = function(state) {
+    this.state = state;
+
+    switch (this.state) {
+    case 'init':
+      displayState = "Initializing...";
+      break;
+    case 'saved':
+      displayState = "Saved";
+      break;
+    case 'saving':
+      displayState = "Saving...";
+      break;
+    case 'modified':
+      displayState = "Modified";
+      break;
+    case 'saveError':
+      displayState = "Save error!";
+      break;
+    case 'ready':
+      displayState = "Ready";
+    }
+
+    $("#state span").hide().html(displayState).show();
+  }
+
+  /* Load our interface elements from SVG files. */
+  this.loadUIElements = function() {
+    this.loadSVGFile('folder', 1, 40, 40, 110, 1000);
+    //this.loadSVGFile( 'rotate', .6, 20, 20 );
+    //this.loadSVGFile( 'plus', 1, 40, 40 );
+    this.loadStateFeedback();
+  }
+
+  // Render all the UI elements in the workspace
+  this.renderUI = function() {
+    for (key in this.uiElements) {
+      this.canvas.add(this.uiElements[key]);
+    }
+
+    this.canvas.renderAll();
+  }
+
+  this.createGroup = function() {
+    var group = new Group(this);
+    this.groups.push(group);
+  }
+
+  this.objectMoveListener = function(e) {
+    //e.memo.target is the object moving
+  }
+
+  function loadFromSVGFromURLCallback(objects, options) {
+    var group = new fabric.PathGroup(objects, {
+      left: options.left,
+      top: options.top,
+      width: options.width * 1.1,
+      height: options.height * 1.1,
+    });
+    group.id = options.name;
+    group.hasBorders = false;
+    group.hasControls = false;
+    group.selectable = true;
+    group.scale(options.scale);
+    this.uiElements[options.name] = group;
+    if(options.top && options.left) {
+      this.canvas.add(group);
+    }
+  }
+
+  this.addGroup = function() {
+    var group = new Group(this);
+  }
+
+  this.objectModifiedEvent = function(e) {
+    console.log('modified');
+    console.log(e);
+    this.changeState('modified');
+    this.saveRemotely();
+  }
+
+  this.mouseDownEvent = function(e) {
+    var object = e.memo.target;
+    var rightNow = new Date();
+
+    switch (object.id) {
+    case 'folder':
+      this.addGroup();
+      break;
+    }
+
+    if (typeof this.lastMouseDown.time != 'undefined' && typeof this.lastMouseDown.object != 'undefined') {
+      if (parseInt(rightNow.getTime() - this.lastMouseDown.time.getTime()) <= 800) {
+        // if we get here it's a double click.
+        object.item.renderMenu(e);
       }
-/*
-      	var image1 = fabric.Image.fromURL(data.items[i].url, function(image) {
-	          image.lockUniScaling = true;
-        //  image.scale(.48).setCoords();
-	          this.workspace.canvas.centerObject(image)
-    			  this.workspace.canvas.add(image);
-            var jsonString = JSON.stringify(image.toJSON());
-            console.log(jsonString);
-            this.fabric = image;
+    }
 
-            if( ++itemsLoaded >= data.items.length ) {
-              this.
-            }
-        });
-        console.log(this.fabric);
+    this.lastMouseDown.time = rightNow;
+    this.lastMouseDown.object = e.memo.target;
+  }
 
+  this.mouseUpEvent = function(e) {
+    console.log('mouseup');
+    console.log(e);
 
-			}
+    if (this.state == "modified") {
+      this.saveRemotely();
+    }
+  }
 
-			if(data.initialized) {
-				this.render();
-			} else {
-				this.initialRender();
-			}
-      */
-	}
-
-	  this.render = function() {
-
-		}
-
-		this.initialRender = function() {
-
-		}
+  this.saveSuccessCallback = function(data) {
+    this.changeState('saved');
+  }
 
 }
 
-Workspace.prototype.saveRemotely = function() {
+Item.prototype.renderMenu = function(e) {
+  var vmenu = $("#original.vmenu").clone().attr('id', this.id);
+  $(vmenu).children().click(function() {
+    this.workspace.renderUIElement(this.getAttribute('id'), this.id)
+  })
 
+  $(vmenu).css({
+    left: e.memo.e.pageX,
+    top: e.memo.e.pageY,
+    zIndex: '101'
+  }).appendTo('#body').show();
+
+}
+
+/* Return a JSON object for sending to the server for saving.
+   Set returnString to true if you want a JSON string instead of an object. */
+Item.prototype.toJSON = function(returnString) {
+  returnString = typeof returnString !== 'undefined' ? returnString : false;
+
+  var jsonItem = {};
+  jsonItem.id = this.id;
+  jsonItem.title = this.title;
+  jsonItem.description = this.description;
+  jsonItem.imageURL = this.imageURL;
+  jsonItem.fabric = this.fabric;
+
+  if (returnString) {
+    return JSON.stringify(jsonItem);
+  } else {
+    return jsonItem;
+  }
+}
+
+
+/* Send current workspace state to server for saving. */
+Workspace.prototype.saveRemotely = function() {
+  this.changeState('saving');
+
+  var boundSaveSuccessCallback = createBoundedWrapper(this, this.saveSuccessCallback);
   var tempWorkspace = {};
+
   tempWorkspace.id = this.id;
   tempWorkspace.initialized = this.initialized;
-  tempWorkspace.items = this.canvas.getObjects();
-  console.log(tempWorkspace);
+  tempWorkspace.title = "";
+  tempWorkspace.items = [];
+  for (var i = 0; i < this.numItems; i++) {
+    tempWorkspace.items[i] = this.items[i].toJSON();
+  }
   var jsonString = JSON.stringify(tempWorkspace);
-//  console.log(jsonString);
+
+  // Error handling for this request is non-existent currently.
   $.post('http://localhost/apt/json.php', {
     id: this.id,
-    content: jsonString },
-    function(data) {
-      console.log(data);
-      console.log("successful post.");
-    }
-  );
+    content: jsonString
+  }, boundSaveSuccessCallback);
 
 
 }
 
-    Workspace.prototype.init = function() {
-        var boundZoom = createBoundedWrapper(this, this.zoom);
-        var boundProcessJSON = createBoundedWrapper(this, this.processJSON);
+Workspace.prototype.init = function() {
 
-    	// This is our main canvas element. Create and append it.
-	   	var canvasElem = document.createElement('canvas');
-    	canvasElem.setAttribute('id', 'c');
-    	canvasElem.setAttribute('width', window.innerWidth);
-    	canvasElem.setAttribute('height', window.innerHeight);
-    	canvasElem.setAttribute('style', "border:1px solid #ccc");
-    	document.getElementById('body').appendChild(canvasElem);
+  // Bounded wrappers for Workspace functions
+  var boundZoom = createBoundedWrapper(this, this.zoom);
+  var boundLoadUI = createBoundedWrapper(this, this.loadUI);
+  var boundProcessJSON = createBoundedWrapper(this, this.processJSON);
+  var boundMouseDownEvent = createBoundedWrapper(this, this.mouseDownEvent);
+  var boundMouseUpEvent = createBoundedWrapper(this, this.mouseUpEvent);
+  var boundObjectModifiedEvent = createBoundedWrapper(this, this.objectModifiedEvent);
 
-    	// This is our FabricJS object for the canvas.
-        this.canvas = new fabric.Canvas('c');
+  // This is our main canvas element. Create and append it.
+  var canvasElem = document.createElement('canvas');
+  canvasElem.setAttribute('id', 'c');
+  canvasElem.setAttribute('width', window.innerWidth);
+  canvasElem.setAttribute('height', window.innerHeight);
+  canvasElem.setAttribute('style', "border:1px solid #ccc");
+  document.getElementById('body').appendChild(canvasElem);
 
-        // Default zoom scale
-        this.zoomScale = 1;
+  // This is our FabricJS object for the canvas.
+  this.canvas = new fabric.Canvas('c', { renderOnAddition: false });
 
-        // Event listener for zoom.
-        document.addEventListener('DOMMouseScroll', boundZoom, false);
+  this.canvas.observe('mouse:down', boundMouseDownEvent);
+  this.canvas.observe('object:modified', boundObjectModifiedEvent);
 
-        var apiURL = "http://everest.ischool.utexas.edu/~jeff/apt/json.php";
-        $.getJSON("json.json", {
-        		workspace: '1'
-        	}, boundProcessJSON);
-	}
+  // Default zoom scale
+  this.zoomScale = 1;
 
+  this.loadUI();
+  this.changeState('init');
 
-Workspace.prototype.loadItems = function( items ) {
+  var permgroup = new fabric.PermGroup({
+    width: 50,
+    height: 50,
+    left: 750,
+    top: 50,
+    fill: 'rgb(255,0,0)'
+  });
+
+  console.log(permgroup);
+  this.canvas.add(permgroup);
+
+  // Event listener for zoom.
+  document.addEventListener('DOMMouseScroll', boundZoom, false);
+
+  var apiURL = "http://localhost/apt/json.php";
+
+  $.getJSON("json.json", {
+    //$.getJSON("http://localhost/apt/json.php", {
+    workspace: '1'
+  }, boundProcessJSON);
+
+}
+
+Workspace.prototype.zoom = function(event) {
+  var group = new fabric.Group(this.canvas.getObjects());
+  group.selectable = false;
+  group.hasBorders = false;
+  group.hasControls = false;
+
+  var groupObjects = group.getObjects();
+  for (i in groupObjects) {
+    groupObjects[i].hasBorders = false;
+  }
+
+  if (event.detail > 0) {
+    this.zoomScale = this.zoomScale - .05;
+  } else if (event.detail < 0) {
+
+    this.zoomScale = this.zoomScale + .05;
+  }
+
+  this.canvas.setActiveGroup(group);
+  group.scale(this.zoomScale);
+
+  this.canvas.renderAll();
+  this.canvas.discardActiveGroup();
+
+  var groupObjects = group.getObjects();
+  for (i in groupObjects) {
+    groupObjects[i].hasBorders = true;
+  }
 
 }
 
-Workspace.prototype.zoom = function( event ) {
-			console.log(this);
-			var group = new fabric.Group(this.canvas.getObjects());
-			group.selectable = false;
-			group.hasBorders = false;
-			group.hasControls = false;
-
-			var groupObjects = group.getObjects();
-			for(i in groupObjects) {
-				groupObjects[i].hasBorders = false;
-			}
-
-			if(event.detail > 0) {
-				this.zoomScale = this.zoomScale - .05;
-			} else if(event.detail < 0) {
-
-				this.zoomScale = this.zoomScale + .05;
-			}
-
-			this.canvas.setActiveGroup(group);
-			group.scale(this.zoomScale);
-
-			this.canvas.renderAll();
-			this.canvas.discardActiveGroup();
-
-			var groupObjects = group.getObjects();
-				for(i in groupObjects) {
-					groupObjects[i].hasBorders = true;
-				}
-
-}
+/*** MAIN PROGRAM EXECUTION BODY ***/
 
 var workspace = new Workspace();
-console.log(workspace);	
 workspace.init();
-/*
-        var sources = ['http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', 'http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', 'http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg'];
 
-        for(i in sources) {
-        	var image1 = fabric.Image.fromURL(sources[i], function(image) {
-        	image.set({
-            	left: 0,
-            	top: 0
-          	});
-          
-          image.lockUniScaling = true;
-        //  image.scale(.48).setCoords();
-          
-          canvas.centerObject(image);
-          canvas.add(image);
-        });
-        }
-*/
-/* manual image entry
-		var image1 = fabric.Image.fromURL('http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', function(image) {
-        	image.set({
-            	left: 0,
-            	top: 0
-          	});
-          
-          image.lockUniScaling = true;
-        //  image.scale(.48).setCoords();
-          
-          canvas.centerObject(image)
-          canvas.add(image);
-        });
-
-		var image2 = fabric.Image.fromURL('http://everest.ischool.utexas.edu/~jeff/apt/uclamss_2010_b79_f3_3-4.jpg', function(image) {
-        	image.set({
-            	left: 350,
-            	top: 350
-          	});
-          
-          image.lockUniScaling = true;
-         // image.scale(.48).setCoords();
-        //            canvas.centerObject(image)
-
-          canvas.add(image);
-        });
-*/
-
-/*
-		var group = new fabric.Group(canvas.getObjects());
-		
-		//group.scale(0.65);
-		canvas.setActiveGroup(group);
-
-		canvas.renderAll();
-*/
-
-		function zoom(event) {
-
-		}    
+/***                             ***/
 
     </script>
   </body>
