@@ -1481,7 +1481,6 @@ Cufon.registerEngine('vml', (function() {
     // Original by Dead Edwards.
     // Combined with getFontSizeInPixels it also works with relative units.
 
-
     function getSizeInPixels(el, value) {
         if (/px$/i.test(value)) return parseFloat(value);
         var style = el.style.left,
@@ -1668,7 +1667,7 @@ fabric.log = function() {};
  * @param {Any} Values to log as a warning
  */
 fabric.warn = function() {};
-/*
+
 if (typeof console !== 'undefined') {
     if (typeof console.log !== 'undefined' && console.log.apply) {
         fabric.log = function() {
@@ -1680,7 +1679,6 @@ if (typeof console !== 'undefined') {
             return console.warn.apply(console, arguments);
         };
     }
-*/
 }
 
 /**
@@ -1906,6 +1904,11 @@ fabric.Observable = {
         }
     }
 
+    function generateRGB() {
+        var rgbString = "rgb("+Math.floor(Math.random()*256)+","+Math.floor(Math.random()*256)+","+Math.floor(Math.random()*256)+")";
+        return rgbString;
+    }
+
     fabric.util.removeFromArray = removeFromArray;
     fabric.util.degreesToRadians = degreesToRadians;
     fabric.util.toFixed = toFixed;
@@ -1914,6 +1917,7 @@ fabric.Observable = {
     fabric.util.animate = animate;
     fabric.util.requestAnimFrame = requestAnimFrame;
     fabric.util.loadImage = loadImage;
+    fabric.util.generateRGB = generateRGB;
 })();
 (function() {
 
@@ -5077,6 +5081,23 @@ fabric.Observable = {
         },
 
         /**
+         * Returns PermGroup if object is contained within it, otherwise false
+         * @method isInsidePermGroup
+         * @return {Object|Boolean}
+         */
+        isInsidePermGroup: function(object) {
+            for (var i in this._objects) {
+                if (this._objects[i].type == "perm-group") {
+                    if (object.isContainedWithinObject(this._objects[i])) {
+                        return this._objects[i];
+                    }
+                }
+            }
+
+            return false;
+        },
+
+        /**
          * Removes an object from canvas and returns it
          * @method remove
          * @param object {Object} Object to remove
@@ -5726,6 +5747,7 @@ fabric.Observable = {
                     }
                 }
             } else {
+
                 // object is being transformed (scaled/rotated/moved/etc.)
                 var pointer = getPointer(e),
                     x = pointer.x,
@@ -6042,6 +6064,21 @@ fabric.Observable = {
             } else if (by === 'y' && !target.lockUniScaling) {
                 target.lockScalingY || target.set('scaleY', t.scaleY * curLen / lastLen);
             }
+/*
+            if (target.type == "perm-group") {
+                target.forEachObject(function(child) {
+                    if (!by) {
+                        // *** This is not right. child.scaleX is not correct. see above. need to find t equivalent.
+                        child.lockScalingX || child.set('scaleX', child.scaleX * curLen / lastLen);
+                        child.lockScalingY || child.set('scaleY', child.scaleY * curLen / lastLen);
+                    } else if (by === 'x' && !child.lockUniScaling) {
+                        child.lockScalingX || child.set('scaleX', child.scaleX * curLen / lastLen);
+                    } else if (by === 'y' && !child.lockUniScaling) {
+                        child.lockScalingY || child.set('scaleY', child.scaleY * curLen / lastLen);
+                    }
+                });
+            }
+            */
         },
 
         /**
@@ -6091,24 +6128,7 @@ fabric.Observable = {
                     s.cursor = this.HOVER_CURSOR;
                 } else {
                     if (corner in cursorMap) {
-                        //***HERE
-                        if (target.lockUniScaling) {
-/* If lockUniScaling is on for this object, don't show
-            resize cursors for the middle resize handles. */
-                            switch (corner) {
-                            case 'ml':
-                            case 'mt':
-                            case 'mr':
-                            case 'mb':
-                                s.cursor = this.HOVER_CURSOR;
-                                break;
-                            default:
-                                s.cursor = cursorMap[corner];
-                                break;
-                            }
-                        } else {
-                            s.cursor = cursorMap[corner];
-                        }
+                        s.cursor = cursorMap[corner];
                     } else {
                         s.cursor = this.CURSOR;
                         return false;
@@ -6191,21 +6211,20 @@ fabric.Observable = {
 
             // first check current group (if one exists)
             var activeGroup = this.getActiveGroup();
-            //
+
             if (activeGroup && !skipGroup && this.containsPoint(e, activeGroup)) {
                 target = activeGroup;
                 return target;
             }
-            //console.log("***target search begin***");
+
             // then check all of the objects on canvas
             for (var i = this._objects.length; i--;) {
                 if (this._objects[i] && this.containsPoint(e, this._objects[i])) {
                     target = this._objects[i];
                     this.relatedTarget = target;
-//                    break;
+                    break;
                 }
             }
-            //console.log("***end target search***");
             if (target && target.selectable) {
                 return target;
             }
@@ -6823,6 +6842,8 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
          */
         type: 'object',
 
+        permGroup: undefined,
+
         /**
          * @property
          * @type Boolean
@@ -7118,6 +7139,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
          * @param {Boolean} noTransform
          */
         render: function(ctx, noTransform) {
+
             // do not render if width or height are zeros
             if (this.width === 0 || this.height === 0) return;
 
@@ -7243,6 +7265,22 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
             this.theta = value / 180 * Math.PI;
             this.angle = value;
             return this;
+        },
+
+        moveChildren: function() {
+            var diffx = this.previousLeft - this.left,
+                diffy = this.previousTop - this.top;
+            this.previousLeft = this.left;
+            this.previousTop = this.top;
+            this.forEachObject(function(child) {
+                child.top = parseInt(child.top, 10) - diffy;
+                child.left = parseInt(child.left, 10) - diffx;
+                child.setCoords();
+
+                if (child.type == "perm-group") {
+                    child.moveChildren();
+                }
+            }, this);
         },
 
         /**
@@ -7418,10 +7456,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
             _top = top + height + scaleOffsetSizeY;
             ctx.fillRect(_left, _top, sizeX, sizeY);
 
-
-            // Don't draw middle resizer squares if the object
-            // can only be scaled uniformly.
-            if (!this.lockUniScaling) {
+            if (this.lockUniScaling == false) {
                 // middle-top
                 _left = left + this.width / 2 - scaleOffsetX;
                 _top = top - scaleOffsetY;
@@ -7442,7 +7477,6 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
                 _top = top + height / 2 - scaleOffsetY;
                 ctx.fillRect(_left, _top, sizeX, sizeY);
             }
-
             ctx.restore();
 
             return this;
@@ -7595,7 +7629,6 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
         intersectsWithObject: function(other) {
             // extracts coords
 
-
             function getCoords(oCoords) {
                 return {
                     tl: new fabric.Point(oCoords.tl.x, oCoords.tl.y),
@@ -7619,8 +7652,6 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
          * @return {Boolean}
          */
         isContainedWithinObject: function(other) {
-            console.log(other);
-            console.log("is contained.");
             return this.isContainedWithinRect(other.oCoords.tl, other.oCoords.br);
         },
 
@@ -7632,29 +7663,30 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
          * @return {Boolean}
          */
         isContainedWithinRect: function(selectionTL, selectionBR) {
-                console.log("dsfsdfdsfdsfsdf");
-            var oCoords = this.oCoords,
-                tl = new fabric.Point(oCoords.tl.x, oCoords.tl.y),
-                tr = new fabric.Point(oCoords.tr.x, oCoords.tr.y),
-                bl = new fabric.Point(oCoords.bl.x, oCoords.bl.y),
-                br = new fabric.Point(oCoords.br.x, oCoords.br.y);
+/* OLD CODE
+      var oCoords = this.oCoords,
+          tl = new fabric.Point(oCoords.tl.x, oCoords.tl.y),
+          tr = new fabric.Point(oCoords.tr.x, oCoords.tr.y),
+          bl = new fabric.Point(oCoords.bl.x, oCoords.bl.y),
+          br = new fabric.Point(oCoords.br.x, oCoords.br.y);
+
+      return tl.x > selectionTL.x
+        && tr.x < selectionBR.x
+        && tl.y > selectionTL.y
+        && bl.y < selectionBR.y;
+*/
+
+            var scaledTargetWidth = this.width * this.scaleX;
+            var scaledTargetHeight = this.height * this.scaleY;
+
+            var tl = new fabric.Point(this.left - (scaledTargetWidth / 2), this.top - (scaledTargetHeight / 2)),
+                tr = new fabric.Point(this.left + (scaledTargetWidth / 2), this.top - (scaledTargetHeight / 2)),
+                bl = new fabric.Point(this.left - (scaledTargetWidth / 2), this.top + (scaledTargetHeight / 2)),
+                br = new fabric.Point(this.left + (scaledTargetWidth / 2), this.top + (scaledTargetHeight / 2));
             return tl.x > selectionTL.x && tr.x < selectionBR.x && tl.y > selectionTL.y && bl.y < selectionBR.y;
 
         },
 
-  newIsContainedWithinRect: function(selectionTL, selectionBR) {
-    var tl = {}, br = {};
-    tl.x = this.left-(this.width/2);
-    tl.y = this.top-(this.height/2);
-    br.x = this.left+(this.width/2);
-    br.y = this.top+(this.height/2);
-    return tl.x > selectionTL.x && tr.x < selectionBR.x && tl.y > selectionTL.y && bl.y < selectionBR.y;
-  },
-
-  newIsContainedWithinObject: function(object) {
-
-    return this.newIsContainedWithinRect(object.oCoords.tl, object.oCoords.br);
-  },
         /**
          * @method isType
          * @param type {String} type to check against
@@ -9246,7 +9278,6 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
 
     // Copied from Inkscape svgtopdf, thanks!
 
-
     function arcToSegments(x, y, rx, ry, large, sweep, rotateX, ox, oy) {
         argsString = _join.call(arguments);
         if (arcToSegmentsCache[argsString]) {
@@ -10159,8 +10190,6 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
             this.setCoords(true);
             this.saveCoords();
 
-            this.lockUniScaling = true;
-
             this.activateAllObjects();
         },
 
@@ -10298,7 +10327,6 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
          * Renders instance on a given context
          * @method render
          * @param {CanvasRenderingContext2D} ctx context to render instance on
-         * ***HERE
          */
         render: function(ctx) {
             ctx.save();

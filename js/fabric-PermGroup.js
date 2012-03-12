@@ -29,7 +29,10 @@
       rx: 0,
       ry: 0
     },
-    
+
+    previousLeft: 0,
+    previousTop: 0,
+
     /**
      * Constructor
      * @method initialize
@@ -37,44 +40,54 @@
      * @return {Object} thisArg
      */
     initialize: function(options) {
-      // fabric.Group var
-//      this.objects = objects || [];
       this.objects = [];
       this._initStateProperties();
       this.callSuper('initialize', options);
       this._initRxRy();
 
-      // fabric.Group funct
+      this.id = options.id;
+
       this._updateObjectsCoords();
 
     },
-    
+
+    /**
+     * Constructor
+     * @method add
+     * @param object {Object} Fabric object
+     * @return {Object} thisArg
+     */
+    add: function(object) {
+      this.objects.push(object);
+      console.log("added");
+      console.log(this.objects);
+      object.permGroup = this;
+    },
+
+    /**
+     * Removes an object from a group; Then recalculates group's dimension, position.
+     * @param {Object} object
+     * @return {fabric.Group} thisArg
+     * @chainable
+     */
+    remove: function(object) {
+      fabric.util.removeFromArray(this.objects, object);
+//      this._calcBounds();
+//      this._updateObjectsCoords();
+//      return this;
+    },
+
+    /**
+     * @private
+     * @method _calcBounds
+     */
+    _calcBounds: fabric.Group.prototype._calcBounds,
+
     /**
      * @private
      * @method _updateObjectsCoords
      */
-    _updateObjectsCoords: function() {
-      var groupDeltaX = this.left,
-          groupDeltaY = this.top;
-      
-      this.forEachObject(function(object) {
-        
-        var objectLeft = object.get('left'),
-            objectTop = object.get('top');
-        
-        object.set('originalLeft', objectLeft);
-        object.set('originalTop', objectTop);
-        
-        object.set('left', objectLeft - groupDeltaX);
-        object.set('top', objectTop - groupDeltaY);
-        
-        object.setCoords();
-        
-        // do not display corners of objects enclosed in a group
-        object.hideCorners = true;
-
-      }, this);
-    },
+     _updateObjectsCoords: fabric.Group.prototype._updateObjectsCoords,
 
     /**
      * Creates `stateProperties` list on an instance, and adds `fabric.PermGroup` -specific ones to it 
@@ -82,31 +95,20 @@
      * @private
      * @method _initStateProperties
      */
-    _initStateProperties: function() {
-      this.stateProperties = this.stateProperties.concat(['rx', 'ry']);
-    },
+    _initStateProperties: fabric.Rect.prototype._initStateProperties,
     
     /**
      * @private
      * @method _initRxRy
      */
-    _initRxRy: function() {
-      if (this.rx && !this.ry) {
-        this.ry = this.rx;
-      }
-      else if (this.ry && !this.rx) {
-        this.rx = this.ry;
-      }
-    },
+  _initRxRy: fabric.Rect.prototype._initRxRy,
     
     /**
      * Returns an array of all objects in this group
      * @method getObjects
      * @return {Array} group objects
      */
-    getObjects: function() {
-      return this.objects;
-    },
+  getObjects: fabric.Group.prototype.getObjects,
 
     /**
      * @private
@@ -114,22 +116,21 @@
      * @param ctx {CanvasRenderingContext2D} context to render on
      */
    _render: function(ctx) {
-      var rx = this.rx || 0,
+
+     var rx = this.rx || 0,
           ry = this.ry || 0,
           x = -this.width / 2,
           y = -this.height / 2,
           w = this.width,
           h = this.height;
-
-    this._updateObjectsCoords();
-
-     for (var i = 0, len = this.objects.length, object; object = this.objects[i]; i++) {
-        var originalScaleFactor = object.borderScaleFactor;
-        object.borderScaleFactor = groupScaleFactor;
-        object.render(ctx);
-        object.borderScaleFactor = originalScaleFactor;
+      
+      ctx.beginPath();
+      ctx.globalAlpha *= this.opacity;
+      
+      if (this.group) {
+        ctx.translate(this.x || 0, this.y || 0);
       }
-
+      
       ctx.moveTo(x+rx, y);
       ctx.lineTo(x+w-rx, y);
       ctx.bezierCurveTo(x+w, y, x+w, y+ry, x+w, y+ry);
@@ -150,25 +151,13 @@
     },
 
     // since our coordinate system differs from that of SVG
-    _normalizeLeftTopProperties: function(parsedAttributes) {
-      if (parsedAttributes.left) {
-        this.set('left', parsedAttributes.left + this.getWidth() / 2);
-      }
-      this.set('x', parsedAttributes.left || 0);
-      if (parsedAttributes.top) {
-        this.set('top', parsedAttributes.top + this.getHeight() / 2);
-      }
-      this.set('y', parsedAttributes.top || 0);
-      return this;
-    },
+    _normalizeLeftTopProperties: fabric.Rect._normalizeLeftTopProperties,
     
     /**
      * @method complexity
      * @return {Number} complexity
      */
-    complexity: function() {
-      return 1;
-    },
+    complexity: fabric.Rect.complexity,
     
    /**
      * Executes given function for each object in this group
@@ -186,6 +175,8 @@
      * @chainable
      */
     forEachObject: fabric.StaticCanvas.prototype.forEachObject,
+
+    contains: fabric.Group.prototype.contains
 
   });
   
