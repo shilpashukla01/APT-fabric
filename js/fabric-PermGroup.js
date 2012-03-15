@@ -32,6 +32,8 @@
 
     previousLeft: 0,
     previousTop: 0,
+    previousScaleX: 1,
+    previousScaleY: 1,
 
     /**
      * Constructor
@@ -39,13 +41,16 @@
      * @param options {Object} options object
      * @return {Object} thisArg
      */
-    initialize: function(options) {
+    initialize: function(workspace, options) {
+      this.workspace = workspace;
       this.objects = [];
       this._initStateProperties();
       this.callSuper('initialize', options);
       this._initRxRy();
 
       this.id = options.id;
+
+      //this.loadSVGFile('plus', .7, 40, 40, 98, 1200);
 
       this._updateObjectsCoords();
 
@@ -62,6 +67,7 @@
       console.log("added");
       console.log(this.objects);
       object.permGroup = this;
+
     },
 
     /**

@@ -23,6 +23,7 @@ if (typeof document != 'undefined' && typeof window != 'undefined') {
  * @type boolean
  */
 fabric.isTouchSupported = "ontouchstart" in fabric.document.documentElement;
+//fabric.isTouchSupported = true;
 /*
     http://www.JSON.org/json2.js
     2010-03-20
@@ -2526,6 +2527,7 @@ fabric.Observable = {
     }
 
     if (fabric.isTouchSupported) {
+        console.log("in pointer if");
         pointerX = function(event) {
             return event.touches && event.touches[0].pageX;
         };
@@ -5538,8 +5540,8 @@ fabric.Observable = {
 
 
             addListener(fabric.window, 'resize', this._onResize);
-
             if (fabric.isTouchSupported) {
+                console.log("lower add listener");
                 addListener(this.upperCanvasEl, 'touchstart', this._onMouseDown);
                 addListener(this.upperCanvasEl, 'touchmove', this._onMouseMove);
             } else {
@@ -6045,9 +6047,12 @@ fabric.Observable = {
          *                    When not provided, an object is scaled by both dimensions equally
          */
         _scaleObject: function(x, y, by) {
+
             var t = this._currentTransform,
                 offset = this._offset,
                 target = t.target;
+
+            console.log(target.scaleX);
 
             if (target.lockScalingX && target.lockScalingY) return;
 
@@ -6059,6 +6064,20 @@ fabric.Observable = {
             if (!by) {
                 target.lockScalingX || target.set('scaleX', t.scaleX * curLen / lastLen);
                 target.lockScalingY || target.set('scaleY', t.scaleY * curLen / lastLen);
+
+                if(target.type == "perm-group") {
+                    var group = new fabric.Group(target.getObjects());
+                    group.hasBorders = false;
+                    group.hasCorners = false;
+                    group.saveCoords();
+                    group.scale(t.scaleX * curLen / lastLen);
+/*
+                    target.forEachObject(function(child) {
+                        child.set('scaleX', child.scaleX * curLen / lastLen);
+                        child.set('scaleY', child.scaleY * curLen / lastLen);
+                    });
+*/
+                }
             } else if (by === 'x' && !target.lockUniScaling) {
                 target.lockScalingX || target.set('scaleX', t.scaleX * curLen / lastLen);
             } else if (by === 'y' && !target.lockUniScaling) {
@@ -7082,7 +7101,9 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
             if (shouldConstrainValue) {
                 value = this.MIN_SCALE_LIMIT;
             }
+
             if (typeof property == 'object') {
+
                 for (var prop in property) {
                     this.set(prop, property[prop]);
                 }
