@@ -1,6 +1,8 @@
 /* Workspace object is the overall container object. Fabric canvas is kept inside it, 
 so are all Items and functions for loading/saving */
-function Workspace() {
+function Workspace( config ) {
+  this.config = config;
+  this.currentTouches = [];
   this.items = [];
   this.permGroups = [];
   this.loadedItems = 0;
@@ -8,6 +10,7 @@ function Workspace() {
   this.initialized = false;
   this.id = 1;
   this.lastMouseDown = {};
+  this.loadCurrent = true;
 
   this.uiElements = [];
 
@@ -16,29 +19,41 @@ function Workspace() {
 /* This function processes the workspace JSON returned from our request to the server.
   Run using a bounded wrapper. */
   this.processJSON = function(data) {
+    log.action("system", "Processing JSON retrieved from server.");
 
     // If the data is uninitialized, meaning there has been no interaction with
     // the workspace and no previously saved states, we need to calculate
     // layout and size of items.
-    // *** CURRENTLY NOT USED ***
-    if(data.initialized == false) {
-      var totalArea = this.canvas.width*this.canvas.height;
-      var fullItemArea = totalArea/data.items.length;
-      var totalItemSideLength = fullItemArea/2;
+    if(data.initialized === false && this.loadCurrent === false) {
+      var offsetTop = 80;
+      var offsetLeft = 80;
+      var itemHeight = (this.canvas.height*.90)/(.15*(data.items.length+7));
 
-      var itemsPerRow = Math.floor(this.canvas.width/totalItemSideLength);
-      var rowsPerCanvas = Math.floor(this.canvas.height/totalItemSideLength);
+      for(i in data.items) {
 
-      // Currently when laying out uninitialized workspaces we give each
-      // item a square area allotment (with 5% taken out for padding). 
-      // The var below is the length of that square.
-      var actualItemSideLength = (fullItemArea-(fullItemArea*.05))/2;
+        // add width/height/top/left to item constructor
+        var item = new Item(this, data.items[i], {
+          top: offsetTop,
+          left: offsetLeft,
+          height: itemHeight
+        });
+        this.items.push(item);
 
-    }
+        offsetTop = offsetTop+(itemHeight*.15);
+        offsetLeft = offsetLeft+(itemHeight*.15);
+      }
 
-    for (i in data.items) {
-      var item = new Item(this, data.items[i]);
-      this.items.push(item);
+    } else {
+
+      for (i in data.items) {
+        var item = new Item(this, data.items[i]);
+        this.items.push(item);
+      }
+
+      for( i in data.permGroups) {
+        var permgroup = new PermGroup(this, data.permGroups[i]);
+        this.permGroups.push(permgroup);
+      }
     }
   }
 
@@ -52,7 +67,8 @@ function Workspace() {
         scale: scale,
         height: height,
         top: top,
-        left: left
+        left: left,
+        moveable: false
       });
     });
   }
@@ -79,6 +95,7 @@ function Workspace() {
 
   // This function changes the state
   this.changeState = function(state) {
+    log.action("system", "Change state to: "+state);
     this.state = state;
 
     switch (this.state) {
@@ -109,12 +126,13 @@ function Workspace() {
   this.loadUIElements = function() {
     //this.loadSVGFile('folder', 1, 40, 40, 110, 1000);
     //this.loadSVGFile( 'rotate', .6, 20, 20 );
-    this.loadSVGFile('plus', .7, 40, 40, 98, 1200);
+    this.loadSVGFile('plus', 1.2, 40, 40, 98, 1200);
     this.loadStateFeedback();
   }
 
   // Render all the UI elements in the workspace
   this.renderUI = function() {
+    log.action("system", "Rendering UI elements");
     for (key in this.uiElements) {
       this.canvas.add(this.uiElements[key]);
     }
@@ -123,6 +141,7 @@ function Workspace() {
   }
 
   this.renderDialog = function(event) {
+    log.action("system", "Rendering dialog");
     var dialogType = event.currentTarget.id;
     var itemId = event.data.id;
 
@@ -137,10 +156,7 @@ function Workspace() {
         var clonedDialog = $(".dialog#edit").clone();
         $(clonedDialog).find("input#title").attr('value', title);
         $(clonedDialog).find("input#description").attr('value', description);
-/*
-        var submitButton = $(clonedDialog).find('button#submit');
-        $(submitButton).click(function() )
-*/
+
         // The context of the submit button is the dialog div. We use this wrapper
         // to make it the workspace.
         var boundSubmitMetadata = createBoundedWrapper(this, this.submitMetadata);
@@ -161,36 +177,36 @@ function Workspace() {
 
     var dialogSelector = ".dialog#"+dialogType;
     var clonedDialog = $(dialogSelector).clone();
-    console.log(clonedDialog);
-  }
-
-  this.submitMetadata = function(itemId, dialog) {
-    var updated = false;
-    var title = $(dialog).find("input#title").attr('value')
-    var description = $(dialog).find("input#description").attr('value');
-
-    if(title !== this.items[itemId].title) {
-      this.items[itemId].title = title;
-      updated = true;
-    }
-
-    if(description !== this.items[itemId].description) {
-      this.items[itemId].description = description;
-      updated = true;
-    }
-
-    // If there are changes to metadata, 
-    // change the state to modified so they'll be saved
-    if(updated === true) {
-      this.changeState('modified');
-      this.saveRemotely();
-    }
   }
 
   // This function fires whenever an object is scaled in the workspace
   this.objectScalingEvent = function(e) {
+
     // The object that was scaled
     var target = e.memo.target;
+
+    var aptObjects = [];
+    var ids = [];
+
+    if( typeof target === "undefined" ) {
+      aptObjects = undefined;
+    } else if( typeof target.aptObject !== "undefined" ) {
+      aptObjects.push( target.aptObject );
+      ids.push(target.aptObject.id);
+    } else if(target.type === "group") {
+
+      // if its a group, there could be more than one apt objects selected
+      for(i in target.objects) {
+        if(typeof target.objects[i].aptObject === "undefined" ) {
+          log.error("system", "Object in fabric group does not have aptObject pointer");
+        } else {
+          aptObjects.push( target.objects[i].aptObject );
+          ids.push(target.objects[i].aptObject.id);
+        }
+      }
+    }
+
+    log.action("fabric", "Object scaling event (id="+ids.join(',')+")");
 
     // If it's a perm group things are more complicated
     // Currently perm groups do not scale correctly.
@@ -208,14 +224,38 @@ function Workspace() {
 
       target.previousScaleX = target.scaleX;
       this.canvas.calcOffset();
-//      this.canvas.renderAll();    
+
     }
   }
 
   // This function fires while an object is being moved
   this.objectMovingEvent = function(e) {
+
     // The object being moved
     var target = e.memo.target;
+
+    var aptObjects = [];
+    var ids = [];
+
+    if( typeof target === "undefined" ) {
+      aptObjects = undefined;
+    } else if( typeof target.aptObject !== "undefined" ) {
+      aptObjects.push( target.aptObject );
+      ids.push(target.aptObject.id);
+    } else if(target.type === "group") {
+
+      // if its a group, there could be more than one apt objects selected
+      for(i in target.objects) {
+        if(typeof target.objects[i].aptObject === "undefined" ) {
+          log.error("system", "Object in fabric group does not have aptObject pointer");
+        } else {
+          aptObjects.push( target.objects[i].aptObject );
+          ids.push(target.objects[i].aptObject.id);
+        }
+      }
+    }
+
+    log.action("fabric", "Object moving event (id="+ids.join(',')+")");
 
     // Mouse/touch position
     var pointer = fabric.util.getPointer(e),
@@ -229,9 +269,9 @@ function Workspace() {
 
     // If the target has been moved inside a perm group, change the
     // perm group's opacity as feedback
-    var permGroup = this.canvas.isInsidePermGroup(target);
+    var permGroup = this.isInsidePermGroup(aptObjects);
     if (permGroup) {
-      permGroup.set({
+      permGroup.fabric.set({
         opacity: .9
       });
 
@@ -252,26 +292,19 @@ function Workspace() {
     this.canvas.calcOffset();
     this.canvas.renderAll();
 
-/*
-    if(target.isContainedWithinObject(this.canvas.item(0))) {
-      this.canvas.item(0).set({opacity: .5});
-
-    } else {
-      this.canvas.item(0).set({opacity: 1});
-    }
-*/
   }
 
   // This event fires whenever an object is selected
   this.objectSelectedEvent = function(e) {
+    log.action("fabric", "Object selected event");
+
     var target = e.memo.target;
 
     // Bring selected object to the front of the canvas
     // unless it's a perm-group because we don't want the
     // group to get in front of its items.
     if(e.memo.target.type == "perm-group") {
-    console.log("bring to front");
-    //this.canvas.bringToFront(target);
+      //this.canvas.bringToFront(target);
     }
   }
 
@@ -298,110 +331,148 @@ function Workspace() {
 
   // Add a new perm group to the workspace
   this.addPermGroup = function() {
-    var group = new fabric.PermGroup(this, {
-      // This is the default size & position
-      width: 100,
-      height: 100,
-      left: 1150,
-      top: 250,
-      // Give it a random color
-      fill: fabric.util.generateRGB(),
-      opacity: .5
-    });
-    group.hasCorners = false;
-    group.hasBorders = false;
-    group.scaleable = true;
-//    group.lockRotation = true;
+    log.action("user", "Add new PermGroup");
 
-    this.canvas.add(group);
+    var group = new PermGroup(this);
+    this.permGroups.push(group);
+
   }
 
   // This function fires whenever an object is modified (moved/scaled/rotated/etc).
   // Triggers remote saving of workspace.
   this.objectModifiedEvent = function(e) {
+    log.action("system", "Object modified event");
+
     this.changeState('modified');
     this.saveRemotely();
   }
 
   this.mouseDownEvent = function(e) {
-    var object = e.memo.target;
-    console.log("mousedown");
- 
-    if(typeof object == "undefined") {
+    console.log(e);
+//    this.currentTouches.push(e)
+    this.renderClickFeedback(e.memo.e.clientX, e.memo.e.clientY);
+    log.action("user", "Mousedown event");
+    var targets = [];
+    var aptObjects = [];
+    var eventTarget = e.memo.target;
+
+    if(typeof eventTarget === "undefined") {
       this.canvas.discardActiveGroup();
+    } else if( typeof eventTarget.objects === "undefined" ) {
+      targets.push(eventTarget);
+      aptObjects.push(eventTarget.aptObject);
+      this.canvas.bringToFront(eventTarget);
+    } else {
+      var objects = eventTarget.objects;
+      for(var i in objects) {
+        targets.push(objects[i]);
+        aptObjects.push(objects[i].aptObject);
 
-    }
-    if(object.type != "perm-group" || object.objects.length === 0) {
-      this.canvas.bringToFront(object);
-      console.log("mousedown bringto front");
-    }
-
-    var rightNow = new Date();
-
-    if (typeof this.lastMouseDown.time != 'undefined' && typeof this.lastMouseDown.object != 'undefined') {
-      if (parseInt(rightNow.getTime() - this.lastMouseDown.time.getTime()) <= 800) {
-        // if we get here it's a double click.
-        object.item.renderMenu(e);
       }
     }
 
-    var permGroup = this.canvas.isInsidePermGroup(object);
+    this.canvas.renderAll();
+
+
+/*
+    if( eventTarget.type != "perm-group" || target.objects.length === 0) {
+      this.canvas.bringToFront(eventTarget);
+    }
+*/
+    var rightNow = new Date();
+
+    if (typeof this.lastMouseDown.time != 'undefined' && typeof this.lastMouseDown.object != 'undefined') {
+      if (parseInt(rightNow.getTime() - this.lastMouseDown.time.getTime()) <= 500) {
+        log.action("user", "Double click");
+
+        if(eventTarget.type != "perm-group") {
+          // if we get here it's a double click.
+          eventTarget.item.renderMenu(e);
+        } else {
+          eventTarget.group.renderMenu(e);
+        }
+      }
+    }
+
+    var permGroup = this.isInsidePermGroup(aptObjects);
     if (permGroup) {
-      permGroup.set({
+      permGroup.fabric.set({
         opacity: .5
       });
     }
 
     this.lastMouseDown.time = rightNow;
-    this.lastMouseDown.object = e.memo.target;
+    this.lastMouseDown.object = eventTarget;
+    
   }
 
   this.mouseUpEvent = function(e) {
+    log.action("user", "Mouse up event");
+ 
+    var targets = [];
+    var aptObjects = [];
+    var eventTarget = e.memo.target;
 
-    var target = e.memo.target;
+    if( typeof eventTarget === "undefined" ) {
+      return false;
+    }
 
-    // If there's an object being clicked on
-    if (typeof target !== "undefined") {
-      if(target.id == "plus") {
-        this.addPermGroup();
+    if( eventTarget.id == "plus" ) {
+      this.addPermGroup();
+    }
+
+    // If it is a single object...
+    if( typeof eventTarget.objects === "undefined" && typeof eventTarget.aptObject !== "undefined") {
+      targets.push(eventTarget);
+      aptObjects.push(eventTarget.aptObject);
+      this.canvas.bringToFront(eventTarget);
+
+    // If it's multiple objects (a selection group)
+    } else {
+      var objects = eventTarget.objects;
+      for(var i in objects) {
+        targets.push(objects[i]);
+        aptObjects.push(objects[i].aptObject);
       }
+    }
 
-      // Get the perm group the target is currently in
-      var currentPermGroup = this.canvas.isInsidePermGroup(target);
+    // Get the perm group the target is currently in
+    var currentPermGroup = this.isInsidePermGroup(aptObjects);
 
-      // If the object is in the perm group
-      if (currentPermGroup) {
-
-        // If the object is now in a different perm group than the one
-        // it's currently linked to.
-        if( typeof target.permGroup !== "undefined" && currentPermGroup.id !== target.permGroup.id ) {
-          target.permGroup.remove(target);
-          target.permGroup = currentPermGroup;
-
+    // Any of the objects are in a perm group
+    if (currentPermGroup) {
+      // If the object is now in a different perm group than the one
+      // it's currently linked to.
+      for( var i in aptObjects ) {
+        if( typeof aptObjects[i].permGroup !== "undefined" && currentPermGroup.id !== aptObjects[i].permGroup.id ) {
+          aptObjects[i].permGroup.remove(aptObject[i]);
+          aptObjects[i].permGroup = currentPermGroup;
         }
 
         // If an object is over a perm group it hasn't been added to,
         // add it! And change the opacity back to neutral.
-        if (!currentPermGroup.contains(target)) {
-          currentPermGroup.add(target);
-          currentPermGroup.set({ opacity: .5 });
+        if (!currentPermGroup.contains(aptObjects[i])) {
+          var currentFabricPermGroup = currentPermGroup.getFabricObject();
+          currentPermGroup.add(aptObjects[i]);
+          currentFabricPermGroup.set({ opacity: .5 });
 
           // Change the focus from the object back to the perm group
-          this.canvas.setActiveObject(currentPermGroup);
+          this.canvas.setActiveObject(currentFabricPermGroup);
         }
       }
+    } else {
 
-      if (target.permGroup != null && !target.isContainedWithinObject(target.permGroup)) {
-        console.log("remove from permgroup.");
-        target.permGroup.remove(target);
-        target.permGroup.set({ opacity: .5 });
+      for( var i in aptObjects ) {
+        if( aptObjects[i].permGroup !== undefined ) {
+          aptObjects[i].permGroup.remove(aptObjects[i]);
+        }
       }
+    }
 
-      this.canvas.renderAll();
+    this.canvas.renderAll();
 
-      if (this.state == "modified") {
-        this.saveRemotely();
-      }
+    if (this.state == "modified") {
+      this.saveRemotely();
     }
   }
 
@@ -414,6 +485,7 @@ function Workspace() {
 /* Send current workspace state to server for saving. */
 Workspace.prototype.saveRemotely = function() {
   this.changeState('saving');
+  log.action("system", "Saving workspace");
 
   var boundSaveSuccessCallback = createBoundedWrapper(this, this.saveSuccessCallback);
   var tempWorkspace = {};
@@ -422,23 +494,70 @@ Workspace.prototype.saveRemotely = function() {
   tempWorkspace.initialized = this.initialized;
   tempWorkspace.title = "";
   tempWorkspace.items = [];
+  tempWorkspace.permGroups = [];
   for (var i = 0; i < this.numItems; i++) {
     tempWorkspace.items[i] = this.items[i].toJSON();
   }
+
+  for( var i=0;i<this.permGroups.length;i++) {
+    tempWorkspace.permGroups[i] = this.permGroups[i].toJSON();
+  }
+
   var jsonString = JSON.stringify(tempWorkspace);
 
   var jsonws = this.canvas.toJSON();
 
   // Error handling for this request is non-existent currently.
-  $.post('http://everest.ischool.utexas.edu/~jeff/apt-refactored/json.php', {
+  $.post(this.config.apiURL, {
     id: this.id,
     content: jsonString
   }, boundSaveSuccessCallback);
 
+}
 
+Workspace.prototype.renderClickFeedback = function(left, top) {
+  log.action("system", "Render click feedback");
+  var innerCircle = new fabric.Circle({ 
+    radius: 8, 
+    left: left,
+    top: top,
+    fill: 'rgb(255,255,255)', 
+    opacity: 0.6
+  });
+
+  var outerCircle = new fabric.Circle({ 
+    radius: 12, 
+    left: left,
+    top: top,
+    fill: 'rgb(0,255,0)', 
+    opacity: 0.6
+  });
+
+  this.canvas.add(outerCircle, innerCircle);
+  this.canvas.renderAll();
+
+  function fade() {
+    var newOpacity = outerCircle.get('opacity')-.05;
+    if( newOpacity <= 0 ) {
+      outerCircle.set({opacity: 0});
+      innerCircle.set({opacity: 0});
+      this.canvas.remove(outerCircle);
+      this.canvas.remove(innerCircle);
+      return;
+    } else {
+      outerCircle.set({opacity: outerCircle.get('opacity')-.05});
+      this.canvas.renderAll();
+      setTimeout(boundedFade, 5);
+    }
+  }
+
+  var boundedFade = createBoundedWrapper(this, fade);
+
+  setTimeout(boundedFade, 5);
 }
 
 Workspace.prototype.init = function() {
+  log.action("system", "Begin system initialization");
 
   // Bounded wrappers for Workspace functions
   var boundZoom = createBoundedWrapper(this, this.zoom);
@@ -484,12 +603,57 @@ Workspace.prototype.init = function() {
   // Event listener for zoom.
   //document.addEventListener('DOMMouseScroll', boundZoom, false);
 
-  var apiURL = "http://localhost/apt/json.php";
+  // temp function
+  if(this.loadCurrent === false) {
+    var fileName = "loadedeval.json";
+  } else {
+    var fileName = this.config.apiURL;
+  }
 
-  $.getJSON("initial.json", {
+  // Need error handling for this
+  // including timeouts
+  $.getJSON(this.config.apiURL, {
     workspace: '1'
   }, boundProcessJSON);
 
+}
+
+/**
+ * Returns PermGroup if object is contained within it, otherwise false
+ * @method isInsidePermGroup
+ * @return {Object|Boolean}
+ */
+Workspace.prototype.isInsidePermGroup = function( objArray ) {
+  if( this.permGroups.length > 0 ) {
+/*
+    // If there's multiple objects
+    if( typeof object.objects !== "undefined" ) {
+      console.log("multiple objects", object)
+      objArray = object.objects;
+
+    // If it's a single object
+
+    } else {
+      console.log("single object", object)
+      objArray.push( object );
+    }
+    console.log(objArray);
+*/
+    for( var i in this.permGroups ) {
+      for( var k=0;k<objArray.length;k++ ) {
+        var fabricObject = objArray[k].fabric;
+        var permGroupFabricObj = this.permGroups[i].fabric;
+        if( !fabricObject.isContainedWithinObject( permGroupFabricObj ) ) {
+          return false;
+          //console.log("is inside!");
+          //return this.permGroups[i];
+        } 
+      }
+      return this.permGroups[i];
+    }
+  }
+
+  return false;
 }
 
 // Function for zooming the entire workspace. Not working reliably.

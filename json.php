@@ -1,8 +1,8 @@
 <?php
 
 //$BASE_COLLECTIONS_PATH = "/path/to/collections/";
-$BASE_URL_PATH = "http://everest.ischool.utexas.edu/~jeff/apt-refactored/";
-$BASE_WORKSPACE_PATH = "/home/jeff/public_html/apt-refactored/workspaces/";
+$BASE_URL_PATH = "http://localhost/apt/";
+$BASE_WORKSPACE_PATH = "workspaces/";
 
 //$_GET['sdfsdf'] = "asdaddasdas";
 //print_r($_GET);
@@ -32,9 +32,10 @@ if (is_dir($dir)) {
 
 // Return specific workspace
 if( $_GET && $_GET['workspace'] != "all") {
-	echo "in wrong if.";
+
 	$json = array();
 	$filepath = $BASE_WORKSPACE_PATH.$_GET['workspace'].".json";
+
 	if( $handle = fopen($filepath, "r") ) {
 		$contents = fread($handle, filesize($filepath));
 		echo $contents;

@@ -2,16 +2,9 @@
 <html>
   <head>
     <meta charset="utf-8">
+    <!-- jQuery UI CSS (from Google CDN) -->
     <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/themes/base/jquery-ui.css" type="text/css" media="all" />
-<!--    <script src="js/fabric-clean.js"></script> -->
-    <script src="js/fabric-modified.js"></script>
-    <script src="js/fabric-PermGroup.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
-    <script src="js/json2.js"></script>
-    <script src="js/magictouch.js"></script>
-    <script src="js/Workspace.js"></script>
-    <script src="js/Item.js"></script>
+    <!-- end -->
 
     <style>
       html, body {
@@ -26,72 +19,85 @@
      .vmenu .sep_li{border-top: 1px ridge #aaa;margin:5px 0}
      .vmenu .fill_title{font-size:11px;font-weight:bold;/height:15px;/overflow:hidden;word-wrap:break-word;}
 
-     #state { width: 70px; height: 25px; position: fixed; background-color:'#FFFFFF'; border:1px solid black; font-size:9pt; font-family: Arial, sans-serif;z-index:101; display:none;text-align:center;}
+     #state { width: 70px; height: 20px; position: fixed; background-color:'#FFFFFF'; border:1px solid black; font-size:9pt; font-family: Arial, sans-serif;z-index:101; display:none;text-align:center;}
 
      .dialog { display: none; }
     </style>
 
     </head>
     <body id='body'>
-      <div class="vmenu" id="original" style="display:none;">
+
+      <!-- Item context menu -- being phased out -->
+      <div class="vmenu item" id="original" style="display:none;">
         <div class="first_li" id="edit"><span>Edit metadata</span></div>
       </div>
-      <div class="dialog" id="edit" title="Edit metadata">
+      <div class="dialog item" id="edit" title="Edit metadata">
         <p><span>Title: </span><input type="text" id="title" value="Existing title"/></p>
         <p><span>Description: </span><input type="text" id="description" value="Description"/></p>
       </div>
+      <!-- end -->
+
+      <!-- Item metadata dialog -->
+      <div class="vmenu permgroup" id="original" style="display:none;">
+        <div class="first_li" id="edit"><span>Edit metadata</span></div>
+        <div class="first_li" id="ungroup"><span>Ungroup</span></div>
+      </div>
+      <!-- end -->
+
+      <!-- Group metadata dialog -->
+      <div class="dialog group" id="edit" title="Edit metadata">
+        <p><span>Title: </span><input type="text" id="title" value="Existing title"/></p>
+        <p><span>Description: </span><input type="text" id="description" value="Description"/></p>
+        <select name="groupType">
+          <option val="file">File</option>
+          <option val="subseries">Subseries</option>
+          <option val="series">Series</option>
+          <option val="subgroup">Subgroup</option>
+        </select>
+      </div>
+      <div class="dialog group" id="ungroup" title="Ungroup">
+        <p>Are you sure you want to ungroup this grouping?</p>
+      </div>
+      <!-- end -->
+
+      <!-- Required libraries & misc includes -->
+      <script src="js/fabric-all.js"></script>
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+      <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+      <script src="js/magictouch.js"></script>
+      <script src="js/includes.js"></script>
+      <!-- end -->
+
+      <!-- Fabric.js classes -->
+      <!-- <script src="js/fabric-Workspace.js"></script> // currently not used -->
+      <script src="js/fabric-Item.js"></script>
+      <script src="js/fabric-PermGroup.js"></script>
+      <!-- end -->
+
+      <!-- APT-specific classes -->
+      <script src="js/APTObject.js"></script>
+      <script src="js/Workspace.js"></script>
+      <script src="js/PermGroup.js"></script>
+      <script src="js/Item.js"></script>
+      <!-- end -->
 
       <script>
-fabric.util.generateRGB = function() {
-  var rgbString = "rgb("+Math.floor(Math.random()*256)+","+Math.floor(Math.random()*256)+","+Math.floor(Math.random()*256)+")";
-  return rgbString;
-}
 
-var log = function() {
-    this.suppressErrors = false;
-    this.suppressWarnings = true;
-    this.suppressActions = true;
+      /*** MAIN PROGRAM EXECUTION BODY ***/
 
-    this.error = function(msg) {
-      if (!this.suppressErrors) {
-        console.log("[error] " + msg);
-      }
-    }
+      var workspace = new Workspace({
+        apiURL: "http://localhost/apt/json.php"
+      });
 
-    this.warning = function(msg) {
-      if (!this.suppressWarnings) {
-        console.log("[warning] " + msg);
-      }
-    }
+      workspace.init();
 
-    this.action = function() {
-      if (!this.suppressActions) {
-        console.log("[action] " + msg);
-      }
-    }
-
-    };
-
-/* Takes in a function method, returns a duplicate scoped to object.
-   So 'this' will point to object. Helpful for things like event
-   handler functions that are scoped to DOMWindow or document despite
-   being called inside an object. */
-function createBoundedWrapper(object, method) {
-  return function() {
-    return method.apply(object, arguments);
-  };
-}
-
-/*** MAIN PROGRAM EXECUTION BODY ***/
-
-var workspace = new Workspace();
-
-workspace.init();
-
-/***                             ***/
+      /***********************************/
 
     </script>
-<object id="tuio" type="application/x-tuio">Plugin FAILED to load</object>
+
+    <!-- TUIO object loader for npTuioClient -->
+    <object id="tuio" type="application/x-tuio">Plugin FAILED to load</object>
+    <!-- end -->
 
   </body>
 </html>

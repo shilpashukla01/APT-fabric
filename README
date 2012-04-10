@@ -1,0 +1,4 @@
+The Augmented Processing Table is an application for archival processing of digital objects on a multitouch surface. It is currently being developed by the 
+Interaction Group Lab at the School of Information, The University of Texas at Austin.
+
+Path to the API url can be set in index.html. It's currently set to localhost.

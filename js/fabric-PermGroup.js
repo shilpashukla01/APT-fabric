@@ -41,8 +41,9 @@
      * @param options {Object} options object
      * @return {Object} thisArg
      */
-    initialize: function(workspace, options) {
-      this.workspace = workspace;
+    initialize: function(aptObject, options) {
+
+      this.aptObject = aptObject;
       this.objects = [];
       this._initStateProperties();
       this.callSuper('initialize', options);
@@ -64,8 +65,6 @@
      */
     add: function(object) {
       this.objects.push(object);
-      console.log("added");
-      console.log(this.objects);
       object.permGroup = this;
 
     },
@@ -107,14 +106,14 @@
      * @private
      * @method _initRxRy
      */
-  _initRxRy: fabric.Rect.prototype._initRxRy,
+    _initRxRy: fabric.Rect.prototype._initRxRy,
     
     /**
      * Returns an array of all objects in this group
      * @method getObjects
      * @return {Array} group objects
      */
-  getObjects: fabric.Group.prototype.getObjects,
+    getObjects: fabric.Group.prototype.getObjects,
 
     /**
      * @private
@@ -156,6 +155,8 @@
       }
     },
 
+
+
     // since our coordinate system differs from that of SVG
     _normalizeLeftTopProperties: fabric.Rect._normalizeLeftTopProperties,
     
@@ -182,11 +183,27 @@
      */
     forEachObject: fabric.StaticCanvas.prototype.forEachObject,
 
-    contains: fabric.Group.prototype.contains
+    contains: fabric.Group.prototype.contains,
+
+    moveChildren: function() {
+      var diffx = this.previousLeft - this.left,
+          diffy = this.previousTop - this.top;
+      this.previousLeft = this.left;
+      this.previousTop = this.top;
+      this.forEachObject(function(child) {
+        child.top = parseInt(child.top, 10) - diffy;
+        child.left = parseInt(child.left, 10) - diffx;
+        child.setCoords();
+
+        if (child.type == "perm-group") {
+          child.moveChildren();
+        }
+      }, this);
+    },
+
 
   });
   
-
   // TODO (kangax): implement rounded rectangles (both parsing and rendering)
   
   /**
