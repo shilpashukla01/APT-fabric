@@ -58,7 +58,7 @@ function Workspace( config ) {
   }
 
   // If top & left are not included, item is just loaded, it does not display
-  this.loadSVGFile = function(name, scale, width, height, top, left) {
+  this.loadSVGFile = function(name, scale, width, height, top, left, selectable) {
 
     fabric.loadSVGFromURL('img/' + name + '.svg', function(svg) {
       boundLoadSVGFromURLCallback(svg, {
@@ -67,8 +67,7 @@ function Workspace( config ) {
         scale: scale,
         height: height,
         top: top,
-        left: left,
-        moveable: false
+        left: left
       });
     });
   }
@@ -110,6 +109,7 @@ function Workspace( config ) {
       break;
     case 'modified':
       displayState = "Modified";
+      this.saveRemotely();
       break;
     case 'saveError':
       displayState = "Save error!";
@@ -230,10 +230,9 @@ function Workspace( config ) {
 
   // This function fires while an object is being moved
   this.objectMovingEvent = function(e) {
-
     // The object being moved
     var target = e.memo.target;
-
+    console.log(target);
     var aptObjects = [];
     var ids = [];
 
@@ -242,15 +241,22 @@ function Workspace( config ) {
     } else if( typeof target.aptObject !== "undefined" ) {
       aptObjects.push( target.aptObject );
       ids.push(target.aptObject.id);
-    } else if(target.type === "group") {
-
+    } else if( target.type === "apt-group" ) {
+      // handle apt-group case
+      aptObjects.push(target);
+    
+    // This handles selection groups
+    } else if( target.type === "group") {
       // if its a group, there could be more than one apt objects selected
       for(i in target.objects) {
-        if(typeof target.objects[i].aptObject === "undefined" ) {
-          log.error("system", "Object in fabric group does not have aptObject pointer");
-        } else {
-          aptObjects.push( target.objects[i].aptObject );
-          ids.push(target.objects[i].aptObject.id);
+        // If the target isn't our background rect and doesn't have a corresponding APT object
+        if(target.objects[i].type !== "rect") {
+          if( typeof target.objects[i].aptObject === "undefined" ) {
+            log.error("system", "Object in fabric group does not have aptObject pointer");
+          } else {
+            aptObjects.push( target.objects[i].aptObject );
+            ids.push(target.objects[i].aptObject.id);
+          }
         }
       }
     }
@@ -271,16 +277,15 @@ function Workspace( config ) {
     // perm group's opacity as feedback
     var permGroup = this.isInsidePermGroup(aptObjects);
     if (permGroup) {
-      permGroup.fabric.set({
-        opacity: .9
-      });
+      console.log(permGroup);
+      permGroup.makeOpaque();
 
     } else {
       // The object is not in a perm group, so make sure 
       // no perm group is highlighted
       this.canvas.forEachObject(function(object) {
         if(object.type == "perm-group") {
-          object.set({ opacity: .5 });
+          object.makeSemiTransparent();
         }
       });
     }
@@ -344,30 +349,30 @@ function Workspace( config ) {
     log.action("system", "Object modified event");
 
     this.changeState('modified');
-    this.saveRemotely();
+    //this.saveRemotely();
   }
 
   this.mouseDownEvent = function(e) {
-    console.log(e);
-//    this.currentTouches.push(e)
     this.renderClickFeedback(e.memo.e.clientX, e.memo.e.clientY);
     log.action("user", "Mousedown event");
     var targets = [];
     var aptObjects = [];
     var eventTarget = e.memo.target;
-
     if(typeof eventTarget === "undefined") {
       this.canvas.discardActiveGroup();
-    } else if( typeof eventTarget.objects === "undefined" ) {
+    // Here we control for both the background rectangle in perm groups and the plus SVG pathgroup icon used to add permgroups
+    // If we add any more exceptions we probably need a better method for filtering them out of this.
+    } else if( typeof eventTarget.objects === "undefined" && eventTarget.type !== "rect" && eventTarget.type !== "plus" ) {
       targets.push(eventTarget);
       aptObjects.push(eventTarget.aptObject);
       this.canvas.bringToFront(eventTarget);
     } else {
       var objects = eventTarget.objects;
       for(var i in objects) {
-        targets.push(objects[i]);
-        aptObjects.push(objects[i].aptObject);
-
+        if(objects[i].type !== "rect") {
+          targets.push(objects[i]);
+          aptObjects.push(objects[i].aptObject);
+        }
       }
     }
 
@@ -422,7 +427,7 @@ function Workspace( config ) {
     }
 
     // If it is a single object...
-    if( typeof eventTarget.objects === "undefined" && typeof eventTarget.aptObject !== "undefined") {
+    if( typeof eventTarget.type !== "rect" && typeof eventTarget.objects === "undefined" && typeof eventTarget.aptObject !== "undefined") {
       targets.push(eventTarget);
       aptObjects.push(eventTarget.aptObject);
       this.canvas.bringToFront(eventTarget);
@@ -431,8 +436,10 @@ function Workspace( config ) {
     } else {
       var objects = eventTarget.objects;
       for(var i in objects) {
-        targets.push(objects[i]);
-        aptObjects.push(objects[i].aptObject);
+        if(objects[i].type !== "rect") {
+          targets.push(objects[i]);
+          aptObjects.push(objects[i].aptObject);
+        }
       }
     }
 
@@ -449,7 +456,7 @@ function Workspace( config ) {
           aptObjects[i].permGroup = currentPermGroup;
         }
 
-        // If an object is over a perm group it hasn't been added to,
+        // If objects are over a perm group it hasn't been added to,
         // add it! And change the opacity back to neutral.
         if (!currentPermGroup.contains(aptObjects[i])) {
           var currentFabricPermGroup = currentPermGroup.getFabricObject();
@@ -464,16 +471,17 @@ function Workspace( config ) {
 
       for( var i in aptObjects ) {
         if( aptObjects[i].permGroup !== undefined ) {
-          aptObjects[i].permGroup.remove(aptObjects[i]);
+          //aptObjects[i].permGroup.remove(aptObjects[i]);
         }
       }
     }
 
     this.canvas.renderAll();
-
+/*
     if (this.state == "modified") {
       this.saveRemotely();
     }
+*/
   }
 
   this.saveSuccessCallback = function(data) {
@@ -504,7 +512,6 @@ Workspace.prototype.saveRemotely = function() {
   }
 
   var jsonString = JSON.stringify(tempWorkspace);
-
   var jsonws = this.canvas.toJSON();
 
   // Error handling for this request is non-existent currently.
@@ -532,6 +539,8 @@ Workspace.prototype.renderClickFeedback = function(left, top) {
     fill: 'rgb(0,255,0)', 
     opacity: 0.6
   });
+
+  outerCircle.selectable = false, innerCircle.selectable = false;
 
   this.canvas.add(outerCircle, innerCircle);
   this.canvas.renderAll();
@@ -575,7 +584,7 @@ Workspace.prototype.init = function() {
   canvasElem.setAttribute('id', 'c');
   canvasElem.setAttribute('width', window.innerWidth);
   canvasElem.setAttribute('height', window.innerHeight);
-  canvasElem.setAttribute('style', "border:1px solid #ccc");
+  canvasElem.setAttribute('style', "border:1px solid #ccc;");
   document.getElementById('body').appendChild(canvasElem);
 
   // This is our FabricJS object for the canvas.
@@ -602,20 +611,20 @@ Workspace.prototype.init = function() {
 
   // Event listener for zoom.
   //document.addEventListener('DOMMouseScroll', boundZoom, false);
-
+/*
   // temp function
   if(this.loadCurrent === false) {
     var fileName = "loadedeval.json";
   } else {
     var fileName = this.config.apiURL;
   }
-
+*/
   // Need error handling for this
   // including timeouts
   $.getJSON(this.config.apiURL, {
     workspace: '1'
-  }, boundProcessJSON);
-
+//  }, boundProcessJSON);
+  }, boundProcessJSON );
 }
 
 /**
@@ -625,28 +634,13 @@ Workspace.prototype.init = function() {
  */
 Workspace.prototype.isInsidePermGroup = function( objArray ) {
   if( this.permGroups.length > 0 ) {
-/*
-    // If there's multiple objects
-    if( typeof object.objects !== "undefined" ) {
-      console.log("multiple objects", object)
-      objArray = object.objects;
 
-    // If it's a single object
-
-    } else {
-      console.log("single object", object)
-      objArray.push( object );
-    }
-    console.log(objArray);
-*/
     for( var i in this.permGroups ) {
       for( var k=0;k<objArray.length;k++ ) {
         var fabricObject = objArray[k].fabric;
         var permGroupFabricObj = this.permGroups[i].fabric;
         if( !fabricObject.isContainedWithinObject( permGroupFabricObj ) ) {
           return false;
-          //console.log("is inside!");
-          //return this.permGroups[i];
         } 
       }
       return this.permGroups[i];

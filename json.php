@@ -47,9 +47,10 @@ if( $_GET && $_GET['workspace'] != "all") {
 
 // Save workspace
 if( $_POST ) {
+	$_POST['content'] = stripslashes($_POST['content']);
 	$json = array();
 
-	$handle = fopen($BASE_WORKSPACE_PATH.'/'.$_POST['id'].'.json', "w");
+	$handle = fopen($BASE_WORKSPACE_PATH.$_POST['id'].'.json', "w");
 
 	if (fwrite($handle, $_POST['content']) === FALSE) {
 		$json['response'] = "error";
