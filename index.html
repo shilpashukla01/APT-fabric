@@ -19,6 +19,12 @@
       top:200px;
     }
 
+    div.pieMenuOverlay {
+      position:relative;
+      width:30%;
+      height:30%;
+    }
+
     div.pieMenuText {
       color:#000000;
       position:relative;
@@ -39,17 +45,15 @@
 
      .dialog { display: none; }
     </style>
-
     </head>
     <body id='body'>
       <!-- Pie menu -->
-      <div id="piemenu" style="background-image: url('img/piemenu.svg');width: 180px;height:180px;z-index:2;">
-        <ul id="piemenu" class="PieMenu" style="list-style-type:none;z-index:3;">
-          <li id = "1" onclick="PieMenu.clicked()" style="position:relative;left:38px;top:5px;"><a class="pieMenu" href="#"><div class="pieMenuText" style="width:50%;top:-3px;left:-22px;">new group</div><object data="img/plus.svg" type="image/svg+xml" style="width:18%;height:18%;"></object></a></li>
-          <li id="2" style="position:relative;left:90px;top:3px;"><a href="#" class="pieMenu" onclick="PieMenu.clicked()"><div class="pieMenuText" style="top:-2px;">find</div><object data="img/magnifying_glass.svg" type="image/svg+xml" style="width:18%;height:18%;"></object></a></li>
-          <li style="position:relative;left:-15px;top:-58px;"><a href="#" class="pieMenu" onclick="PieMenu.clicked()" style="text-decoration:none;"><div class="pieMenuText" style="left:-7px;top:-2px;width:25%;margin:0;padding:0;">bring me...</div><object data="img/arrow_down.svg" type="image/svg+xml" style="width:18%;height:18%;"></object></a></li>
-          <li style="position:relative;left:38px;top:-70px;"><a href="#" class="pieMenu" onclick="PieMenu.clicked()" style="text-decoration:none;"><div class="pieMenuText" style="left:-4px;top:0px;">close</div><object data="img/x.svg" type="image/svg+xml" style="width:18%;height:18%;"></object></a></li>
-        </ul>
+      <div id="piemenu" style="display:none;background-image: url('img/piemenu.svg');width: 180px;height:180px;z-index:2;">
+          <div class="pieMenu" id="1" style="position:relative;left:38px;top:5px;"><a class="pieMenu" id="addPermGroup" href="#"><div class="pieMenuText" style="width:50%;top:-3px;left:-22px;">new group</div><object data="img/plus.svg" type="image/svg+xml" style="width:18%;height:18%;"></object></a></div>
+          <div class="pieMenu" id="2" style="position:relative;left:90px;top:3px;"><a href="#" class="pieMenu" id="search"><div class="pieMenuText" style="top:-2px;">find</div><object data="img/magnifying_glass.svg" type="image/svg+xml" style="width:18%;height:18%;"></object></a></div>
+          <div class="pieMenu" style="position:relative;left:-15px;top:-58px;width:25%;"><a href="#" class="pieMenu" id="fetch" style="text-decoration:none;"><div class="pieMenuText" style="left:-7px;top:-2px;width:100%;margin:0;padding:0;">bring me...</div><object data="img/arrow_down.svg" type="image/svg+xml" style="width:75%;height:75%;"></object></a></div>
+          <div class="overlay" style="position:relative;width:20%;height:20%background-color:blue;z-index:99;">test</div>
+          <div class="pieMenu" style="position:relative;left:38px;top:-70px;"><a href="#" class="pieMenu" id="close" style="text-decoration:none;"><div class="pieMenuText" style="left:-4px;top:0px;">close</div><object class="pieMenu" data="img/x.svg" type="image/svg+xml" style="width:18%;height:18%;z-index:100;"></object></a></div>
       </div>
       <!-- end -->
 
